@@ -1,0 +1,94 @@
+!pip install yfinance
+!pip install bs4
+!pip install nbformat
+
+import yfinance as yf
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# GameStop
+
+gamestop = yf.Ticker("GME")
+
+gme_data = gamestop.history(period="max")
+
+gme_data.reset_index(inplace=True)
+gme_data.head()
+
+
+url1 = "https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-PY0220EN-SkillsNetwork/labs/project/stock.html"
+
+html_data2 = requests.get(url1).text
+
+soup = BeautifulSoup(html_data2,"html.parser")
+
+table1 = soup.find_all('table')
+
+for index,table in enumerate(table1):
+    if ("GameStop Quartirly Revenue" in str(table)):
+        table_index = index
+print(table_index)
+
+
+gme_revenue = pd.DataFrame(columns=["Date", "Revenue"])
+
+for row in table1[table_index].tbody.find_all("tr"):
+    col = row.find_all("td")
+    if col:
+        Date = col[0].text.strip()
+        Revenue = col[1].text.strip()
+        # Create a temporary DataFrame for the new row
+        new_row = pd.DataFrame([{"Date": Date, "Revenue": Revenue}])
+
+        # Use concat 
+        gme_revenue = pd.concat([gme_revenue, new_row], ignore_index=True)
+
+gme_revenue
+
+
+
+gme_revenue.tail()
+
+
+
+
+def make_graph(gme_data, gme_revenue, stock_name):
+    import pandas as pd
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    gme_data["Date"] = pd.to_datetime(gme_data["Date"]).dt.tz_localize(None)
+    gme_revenue["Date"] = pd.to_datetime(gme_revenue["Date"]).dt.tz_localize(None)
+    gme_revenue["Revenue"] = gme_revenue["Revenue"].replace('[\$,]', '', regex=True).astype(float)
+    gme_data_specific = gme_data[gme_data["Date"] <= pd.Timestamp("2021-06-14")]
+    gme_revenue_specific = gme_revenue[gme_revenue["Date"] <= pd.Timestamp("2021-04-30")]
+    fig = make_subplots(
+        rows=2, cols=1, 
+        shared_xaxes=True, 
+        subplot_titles=("GameStop Stock Data", "GameStop Revenue"), 
+        vertical_spacing=0.3)
+    fig.add_trace(
+        go.Scatter(x=gme_data_specific["Date"], y=gme_data_specific["Close"].astype(float), name="Share Price"), 
+        row=1, col=1)
+    fig.add_trace(
+        go.Scatter(x=gme_revenue_specific["Date"], y=gme_revenue_specific["Revenue"], name="Revenue"), 
+        row=2, col=1)
+    fig.update_xaxes(title_text="Date", row=1, col=1)
+    fig.update_xaxes(title_text="Date", row=2, col=1)
+    fig.update_yaxes(title_text="Price ($US)", row=1, col=1)
+    fig.update_yaxes(title_text="Revenue ($US Millions)", row=2, col=1)
+    fig.update_layout(
+        showlegend=False,
+        height=900,
+        title=stock_name,
+        xaxis=dict(rangeslider=dict(visible=True)))
+
+    fig.show()
+
+make_graph(gme_data, gme_revenue, "GameStop")
